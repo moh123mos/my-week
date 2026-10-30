@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>أسبوعي</title>
+<meta name="description" content="دفتر العادات والبدايات: أسبوعك خانةً خانة، حتى يكتمل البدر.">
+<meta name="theme-color" content="#0f1320">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="أسبوعي">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="booting">
+<svg hidden>
+  <symbol id="logo" viewBox="0 0 64 64">
+    <path d="M32 6A26 26 0 0 1 32 58A13.5 26 0 0 0 32 6Z"/>
+    <circle cx="22.05" cy="7.98" r="2.6"/><circle cx="13.62" cy="13.62" r="2.6"/><circle cx="7.98" cy="22.05" r="2.6"/><circle cx="6" cy="32" r="2.6"/><circle cx="7.98" cy="41.95" r="2.6"/><circle cx="13.62" cy="50.38" r="2.6"/><circle cx="22.05" cy="56.02" r="2.6"/>
+  </symbol>
+</svg>
+<div class="boot" id="boot" role="status" aria-live="polite">
+  <div class="boot-skel" id="bootSkel" aria-hidden="true">
+    <div class="brand">
+      <svg class="logo"><use href="#logo"/></svg>
+      <div><h1>أسبوعي</h1><small>دفتر العادات والبدايات</small></div>
+    </div>
+    <div class="sk sk-sum"><span class="sk-moon"></span><span class="sk-lines"><i></i><i></i></span></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+  </div>
+  <span class="sr-only" id="bootLabel">جارٍ التحميل…</span>
+  <div class="auth-card boot-fail" id="bootFail" hidden>
+    <div class="mark"><i class="ph-bold ph-wifi-slash"></i></div>
+    <h2>تعذّر الاتصال</h2>
+    <p class="auth-sub" id="bootMsg"></p>
+    <button class="btn primary" id="bootRetry" type="button"><span>إعادة المحاولة</span></button>
+  </div>
+</div>
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+        <div><h1>أسبوعي</h1><small>دفتر العادات والبدايات</small></div>
+      </div>
+      <div class="tools">
+        <span class="saved" id="saved" aria-live="polite"><i class="dot"></i> <span>تم الحفظ</span></span>
+        <button class="icon-btn" id="editBtn" aria-label="تعديل البنود والبيانات"><i class="ph ph-gear-six"></i></button>
+      </div>
+    </div>
+    <div class="weekbar">
+      <div class="week-title"><div class="range" id="range"></div><div class="hijri" id="hijri"></div></div>
+      <div class="nav">
+        <button class="today-btn" id="todayBtn" hidden>هذا الأسبوع</button>
+        <button class="icon-btn" id="prevBtn" aria-label="الأسبوع السابق"><i class="ph-bold ph-caret-right"></i></button>
+        <button class="icon-btn" id="nextBtn" aria-label="الأسبوع التالي"><i class="ph-bold ph-caret-left"></i></button>
+      </div>
+    </div>
+    <div id="banner"></div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="ملخص الأسبوع">
+      <svg class="moon" viewBox="0 0 100 100" aria-hidden="true">
+        <defs><clipPath id="moonClip"><path id="moonLit" d="M50 8A42 42 0 0 1 50 92A42 42 0 0 0 50 8Z"/></clipPath></defs>
+        <circle class="moon-dark" cx="50" cy="50" r="42"/>
+        <g clip-path="url(#moonClip)">
+          <circle class="moon-lit" cx="50" cy="50" r="42"/>
+          <circle class="moon-mare" cx="38" cy="34" r="11"/><circle class="moon-mare" cx="62" cy="48" r="7"/><circle class="moon-mare" cx="44" cy="68" r="9"/><circle class="moon-mare" cx="72" cy="28" r="4"/>
+        </g>
+      </svg>
+      <div class="sum-body"><h2 id="sumTitle"></h2><p><b id="pct">0%</b> · <span id="sumSub"></span></p></div>
+    </section>
+    <section class="board" aria-label="شبكة الأسبوع">
+      <p class="legend"><span>اضغط الدائرة:</span> <span class="lg"><i class="lg-dot s1"></i>أنجزت</span> ← <span class="lg"><i class="lg-dot s2"></i>فاتني</span> ← <span class="lg"><i class="lg-dot s0"></i>فارغة</span></p>
+      <div class="days-head" id="head"></div>
+      <div id="rows"></div>
+      <div class="rhythm"><h3>إيقاع الأسبوع</h3><div class="bars" id="bars"></div><div class="stats" id="stats"></div></div>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
