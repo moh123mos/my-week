@@ -1,4 +1,4 @@
-// Every size limit in one place. The client mirrors some of them (maxlength, add-item button) in public/app.js.
+// Every size limit in one place. The client mirrors some of them (LIMITS) in public/js/config.js.
 module.exports = {
   MAX_ITEMS: 100,
   MAX_NAME: 100,

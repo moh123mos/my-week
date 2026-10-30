@@ -7,7 +7,8 @@ Weekly habit tracker. Vanilla JS client (`public/`), Node + Express 5 + Mongoose
 ## Project layout
 
 ```
-public/            index.html, style.css, app.js  (the whole client, no build step)
+public/            index.html, style.css, js/ (ES modules, no build step; entry js/main.js)
+test/client/       client unit tests (run by pnpm test)
 api/index.js       Vercel entry: exports the Express app
 server/app.js      Express app: security headers/CSP, body parsers, routes
 server/index.js    local server (app + static files)

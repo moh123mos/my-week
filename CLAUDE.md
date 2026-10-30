@@ -9,11 +9,11 @@ Arabic RTL weekly habit tracker: grid of habits x 7 days (done / missed / empty)
 - Load test and e2e procedures: `docs/TESTING.md`. Deploy steps and env vars: `README.md`.
 
 ## Architecture contracts (read before changing sync, auth or data)
-- No build step. Client is one IIFE in `public/app.js`. The Express app is exported from `server/app.js` and used by `server/index.js` (local) and `api/index.js` (Vercel serverless).
+- No build step. Client is native ES modules in `public/js/` (entry `main.js`; `sync.js`, `week.js`, `dates.js` have no DOM and are tested in `test/client/`; a new module also needs a `modulepreload` line in `index.html`). The Express app is exported from `server/app.js` and used by `server/index.js` (local) and `api/index.js` (Vercel serverless).
 - Data is two collections, not one document: `Settings` (habit rows, one per user) and `Week` (one doc per user per week). The client loads only the week on screen plus the previous one (needed for the inherited "start" value) and fetches others on navigation.
 - Saves are per-field deltas, debounced 600 ms: the client's `dirty` map tracks `checks|start|end` ids, the server turns them into a flat `$set` (`checks.<id>`). Never "simplify" to sending the whole week or whole state: that loses edits made on another device.
 - `server/validate.js` is the only trust boundary; everything from the client is rebuilt there. A new field needs `cleanWeek` + `weekFieldPaths` + `serializers.js` + `limits.js`.
-- Size limits live in `server/limits.js`; the client mirrors some (`maxlength`, the 100-row cap in `public/app.js`). Change both.
+- Size limits live in `server/limits.js`; the client mirrors some (`maxlength`, `LIMITS` in `public/js/config.js`). Change both; `test/client/mirrors.test.mjs` catches drift.
 - Week keys are `YYYY-MM-DD`, Saturdays only, 2020-01-01..2100-12-31 (`isWeekKey`).
 - The CSP exists twice and must stay identical: `server/app.js` (helmet, covers `/api`) and `vercel.json` (covers the static page). `style-src` needs `'unsafe-inline'` (the rows use `style=""`). Any new external origin goes in both.
 - Auth: 30-day JWT in httpOnly cookie `mw_token`, renewed by `GET /api/session`. `JWT_SECRET` under 32 chars makes the server refuse to load. `POST /api/auth/logout` is registered before the DB middleware on purpose (must work when Mongo is down).
@@ -31,7 +31,7 @@ Arabic RTL weekly habit tracker: grid of habits x 7 days (done / missed / empty)
 - No git commits exist yet; don't commit unless asked.
 
 ## Before saying "done"
-Run `pnpm test`, then the API smoke and browser e2e checklists in `docs/TESTING.md` for anything touching sync, auth or the client. Unit tests do not cover `public/app.js`.
+Run `pnpm test`, then the API smoke and browser e2e checklists in `docs/TESTING.md` for anything touching sync, auth or the client. Unit tests do not cover `public/js/ui/`.
 
 ## More context
 - Product requirements: `docs/PRD.md` (Arabic)

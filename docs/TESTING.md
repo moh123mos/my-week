@@ -8,7 +8,7 @@ Audience: Claude and developers. Run what applies before calling a change done.
 pnpm test
 ```
 
-Covers `server/validate.js`, `server/password.js`, `server/email.js`. `public/app.js` has no automated tests: verify it with section 3.
+Covers `server/validate.js`, `server/password.js`, `server/email.js`, and the client logic in `public/js/` (`dates`, `week`, `sync`, plus limits mirrored from the server). `public/js/ui/` has no automated tests: verify it with section 3.
 
 ## 2. API smoke (needs a server and a database)
 

@@ -17,6 +17,25 @@
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 <link rel="stylesheet" href="style.css">
+<!-- Fetched together, so a slow connection doesn't discover the imports one round trip at a time. -->
+<link rel="modulepreload" href="js/main.js">
+<link rel="modulepreload" href="js/config.js">
+<link rel="modulepreload" href="js/dates.js">
+<link rel="modulepreload" href="js/week.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/store.js">
+<link rel="modulepreload" href="js/sync.js">
+<link rel="modulepreload" href="js/dom.js">
+<link rel="modulepreload" href="js/session.js">
+<link rel="modulepreload" href="js/ui/auth.js">
+<link rel="modulepreload" href="js/ui/backup.js">
+<link rel="modulepreload" href="js/ui/boot.js">
+<link rel="modulepreload" href="js/ui/dialogs.js">
+<link rel="modulepreload" href="js/ui/edit.js">
+<link rel="modulepreload" href="js/ui/grid.js">
+<link rel="modulepreload" href="js/ui/nav.js">
+<link rel="modulepreload" href="js/ui/status.js">
+<link rel="modulepreload" href="js/ui/summary.js">
 </head>
 <body class="booting">
 <svg hidden>
@@ -25,6 +44,8 @@
     <circle cx="22.05" cy="7.98" r="2.6"/><circle cx="13.62" cy="13.62" r="2.6"/><circle cx="7.98" cy="22.05" r="2.6"/><circle cx="6" cy="32" r="2.6"/><circle cx="7.98" cy="41.95" r="2.6"/><circle cx="13.62" cy="50.38" r="2.6"/><circle cx="22.05" cy="56.02" r="2.6"/>
   </symbol>
 </svg>
+
+<!-- Checking the session -->
 <div class="boot" id="boot" role="status" aria-live="polite">
   <div class="boot-skel" id="bootSkel" aria-hidden="true">
     <div class="brand">
@@ -44,6 +65,8 @@
     <button class="btn primary" id="bootRetry" type="button"><span>إعادة المحاولة</span></button>
   </div>
 </div>
+
+<!-- The notebook -->
 <div class="wrap">
   <header class="top">
     <div class="top-row">
@@ -52,7 +75,8 @@
         <div><h1>أسبوعي</h1><small>دفتر العادات والبدايات</small></div>
       </div>
       <div class="tools">
-        <span class="saved" id="saved" aria-live="polite"><i class="dot"></i> <span>تم الحفظ</span></span>
+        <span class="saved" id="saved" aria-hidden="true"><i class="dot"></i> <span>تم الحفظ</span></span>
+        <span class="sr-only" id="savedNote" role="status"></span>
         <button class="icon-btn" id="editBtn" aria-label="تعديل البنود والبيانات"><i class="ph ph-gear-six"></i></button>
       </div>
     </div>
@@ -64,7 +88,7 @@
         <button class="icon-btn" id="nextBtn" aria-label="الأسبوع التالي"><i class="ph-bold ph-caret-left"></i></button>
       </div>
     </div>
-    <div id="banner"></div>
+    <div id="banner" aria-live="polite"></div>
   </header>
 
   <main>
@@ -80,13 +104,79 @@
       <div class="sum-body"><h2 id="sumTitle"></h2><p><b id="pct">0%</b> · <span id="sumSub"></span></p></div>
     </section>
     <section class="board" aria-label="شبكة الأسبوع">
-      <p class="legend"><span>اضغط الدائرة:</span> <span class="lg"><i class="lg-dot s1"></i>أنجزت</span> ← <span class="lg"><i class="lg-dot s2"></i>فاتني</span> ← <span class="lg"><i class="lg-dot s0"></i>فارغة</span></p>
+      <p class="legend">
+        <span>اضغط الدائرة:</span>
+        <span class="lg"><i class="lg-dot s1"></i>أنجزت</span> ←
+        <span class="lg"><i class="lg-dot s2"></i>فاتني</span> ←
+        <span class="lg"><i class="lg-dot s0"></i>فارغة</span>
+      </p>
       <div class="days-head" id="head"></div>
       <div id="rows"></div>
       <div class="rhythm"><h3>إيقاع الأسبوع</h3><div class="bars" id="bars"></div><div class="stats" id="stats"></div></div>
     </section>
   </main>
 </div>
-<script src="app.js"></script>
+
+<footer class="sign">
+  <strong>محمد مصطفى</strong>
+  <nav class="sign-links" aria-label="روابط محمد مصطفى">
+    <a href="https://www.linkedin.com/in/mhamed-mstafa/" target="_blank" rel="noopener noreferrer"><i class="ph ph-linkedin-logo"></i> لينكدإن</a>
+    <a href="https://github.com/moh123mos" target="_blank" rel="noopener noreferrer"><i class="ph ph-github-logo"></i> جيتهاب</a>
+    <a href="https://muhamed-mustafa.dev/" target="_blank" rel="noopener noreferrer"><i class="ph ph-globe-simple"></i> البورتفوليو</a>
+  </nav>
+</footer>
+
+<!-- Sign in / register -->
+<div class="auth" id="auth" role="dialog" aria-labelledby="authTitle">
+  <form class="auth-card" id="authForm" novalidate>
+    <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+    <h2 id="authTitle">تسجيل الدخول</h2>
+    <p class="auth-sub">أسبوعي — دفتر العادات والبدايات</p>
+    <label class="af"><span>الاسم</span><input id="authName" type="text" autocomplete="name" maxlength="60"></label>
+    <label class="af"><span>الإيميل</span><input id="authEmail" type="email" dir="ltr" autocomplete="email" inputmode="email" required></label>
+    <label class="af"><span>كلمة المرور</span><input id="authPass" type="password" dir="ltr" autocomplete="current-password" required></label>
+    <p class="auth-help" id="authHelp" hidden>٨ أحرف على الأقل.</p>
+    <p class="auth-err" id="authErr" role="alert" hidden></p>
+    <button class="btn primary" id="authSubmit" type="submit"><span>تسجيل الدخول</span></button>
+    <button class="link-btn" id="authSwitch" type="button">إنشاء حساب جديد</button>
+  </form>
+</div>
+
+<!-- Edit dialog -->
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head">
+    <h2 id="dlgTitle">تعديل الدفتر</h2>
+    <button class="icon-btn" id="dlgClose" aria-label="إغلاق"><i class="ph-bold ph-x"></i></button>
+  </div>
+  <div class="dlg-body">
+    <h4>الحساب</h4>
+    <div class="acct">
+      <div><strong id="acctName"></strong><small id="acctMail" dir="ltr"></small></div>
+      <button class="btn sign-out" id="logoutBtn">خروج <i class="ph ph-sign-out"></i></button>
+    </div>
+    <h4>البنود (تظهر كصفوف في الشبكة)</h4>
+    <div id="editList"></div>
+    <button class="btn" id="addItem"><i class="ph-bold ph-plus"></i> إضافة بند</button>
+    <p class="hint" id="addHint" hidden>وصلت للحد الأقصى (١٠٠ بند). احذف بندًا لإضافة غيره.</p>
+    <h4>البيانات</h4>
+    <div class="btn-row">
+      <button class="btn" id="exportBtn"><i class="ph ph-download-simple"></i> تصدير نسخة احتياطية</button>
+      <button class="btn" id="importBtn"><i class="ph ph-upload-simple"></i> استيراد نسخة</button>
+      <button class="btn danger" id="resetBtn"><i class="ph ph-trash"></i> مسح كل البيانات</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+</dialog>
+
+<!-- In-page confirm() / alert() -->
+<dialog id="ask" class="ask" aria-labelledby="askMsg">
+  <p id="askMsg"></p>
+  <div class="ask-acts">
+    <button class="btn primary" id="askOk" type="button"></button>
+    <button class="btn" id="askNo" type="button">رجوع</button>
+  </div>
+</dialog>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

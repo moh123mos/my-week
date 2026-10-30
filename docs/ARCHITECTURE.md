@@ -5,7 +5,7 @@ Audience: Claude and developers changing the code. Product intent lives in `PRD.
 ## Shape
 
 ```
-Browser (public/: index.html, style.css, app.js)
+Browser (public/: index.html, style.css, js/)
    |  fetch /api/*  (same origin, httpOnly cookie)
    v
 Vercel: static files from the CDN  +  one serverless function (api/index.js -> server/app.js)
@@ -44,7 +44,7 @@ All under `/api`, JSON, `Cache-Control: no-store`. All except register/login/log
 | `PUT /data/import` `{state}` | replace everything (backup restore or first-login upload of old localStorage data); 4 MB body limit, auth required before parsing |
 | `DELETE /data` | wipe the user's data |
 
-## Client sync protocol (public/app.js)
+## Client sync protocol (public/js/sync.js)
 
 State: `state = {items, weeks}` is a cache; `loaded` is the set of week keys fetched; `dirty` maps week -> field sets still to send; `dirtyItems` flags the rows list.
 
@@ -53,9 +53,9 @@ State: `state = {items, weeks}` is a cache; `loaded` is the set of week keys fet
 - **Failure:** network, 5xx, 408, 429 -> `remerge` the delta (current values, not the stale body) and retry in 5 s with a banner. Other 4xx -> drop the delta and show a "limits" banner (retrying would block every later save). 401 -> `showAuth`.
 - **Page hide:** `push(true)` uses `keepalive` and ignores the single-flight rule; per-field writes make ordering safe, except that overlapping requests are re-marked dirty and re-sent.
 - **Return to tab:** `resync()` (at most every 30 s) refetches the displayed weeks, merges only fields that are not dirty, replaces `items` only if not dirty and the edit dialog is closed, drops other loaded weeks, and re-renders only if something changed.
-- **Navigation:** `goTo(key)` loads the week and its previous one (`loadWeeks` dedupes through `pendingLoads`), `target` makes a quick double click move two weeks, `navSeq` discards superseded navigations.
+- **Navigation:** `goTo(key)` loads the week and its previous one (`loadWeeks` dedupes through `pendingLoads`; see `ui/nav.js`), `target` makes a quick double click move two weeks, `navSeq` discards superseded navigations.
 - **Account switch:** every async path captures `epoch`; `showAuth` bumps it and wipes the DOM, so a stale response can never touch the next user's state.
-- **Logout/import/reset:** `flush()` / `quiesce()` first. Logout asks for confirmation if edits are still unsaved, and does not lock the screen if the server could not clear the session.
+- **Logout/import/reset:** logout calls `flush()`; import and reset run inside `whilePaused()` (no saves) with the edit dialog frozen. Logout asks for confirmation if edits are still unsaved, and does not lock the screen if the server could not clear the session.
 
 ## Server notes
 
