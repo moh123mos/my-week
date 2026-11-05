@@ -13,11 +13,12 @@ api/index.js       Vercel entry: exports the Express app
 server/app.js      Express app: security headers/CSP, body parsers, routes
 server/index.js    local server (app + static files)
 server/db.js       cached Mongo connection (serverless friendly)
-server/routes/     auth (register/login), session (one-request page load), data (save/load/export/import)
-server/models/     User, Settings (the habit rows), Week (one doc per user per week)
+server/routes/     auth (register/login), session (one-request page load), data (save/load/export/import), admin (dashboard API)
+server/models/     User, Settings (the habit rows), Week (one doc per user per week), AuditLog (admin trail)
 server/validate.js input cleaning, week key checks   server/limits.js  all size limits
 server/password.js scrypt hashing (+ rehash)         server/email.js   email check
-server/scripts/    indexes.js (optional manual index build)
+server/scripts/    indexes.js (optional manual index build), admin.js (grant / revoke the admin role)
+public/admin.html  admin dashboard (modules in public/js/admin/)
 loadtest/          k6 scripts + seed.js
 ```
 
@@ -29,6 +30,7 @@ loadtest/          k6 scripts + seed.js
 | `JWT_SECRET` | yes | random string, **at least 32 characters** (the server refuses to start otherwise) |
 | `SESSION_DAYS` | no | login lifetime in days, default 30 |
 | `AUTH_RATE_MAX` | no | failed logins / registrations per IP per 15 min, default 30 |
+| `AUTH_CACHE_MS` | no | how long a process remembers that an account is active and not suspended, default 5000. Suspending is instant on the instance that did it and reaches others within this time; 0 checks the database on every request |
 | `DB_POOL` | no | Mongo `maxPoolSize` per instance, default 5 |
 | `UV_THREADPOOL_SIZE` | no | tip for self-hosting under many logins: scrypt runs on libuv's thread pool (default 4), raise it (e.g. 8) on a multi-core host |
 
@@ -42,12 +44,25 @@ pnpm dev            # http://localhost:3000, restarts on change
 pnpm start
 ```
 
-Requires Node >= 20.19. Indexes (unique email, unique user+week) are created automatically on connect; `pnpm db:index` builds them up front if you want to see an index error immediately.
+Requires Node >= 20.19.
+
+### Admin dashboard
+
+Sign up normally, then make that account an admin from the terminal (it uses `MONGODB_URI` from `.env`):
+
+```
+pnpm admin:grant you@example.com
+pnpm admin:revoke you@example.com   # refuses to remove the last admin
+```
+
+An admin sees an admin-dashboard button in the settings dialog, which opens `/admin.html`: overview numbers and charts, the users list (search, suspend, rename, promote, reset password, end sessions, delete) and the audit trail. Indexes (unique email, unique user+week) are created automatically on connect; `pnpm db:index` builds them up front if you want to see an index error immediately.
 
 ## Tests
 
 ```
-pnpm test           # node --test: validation, password hashing, email check. No database needed.
+pnpm test           # node --test: validation, password hashing, email check, admin helpers. No database needed.
+# The admin API integration test needs a LOCAL MongoDB and is skipped otherwise (refuses non-localhost):
+MW_TEST_MONGODB_URI=mongodb://127.0.0.1:27018/mw-test pnpm test
 ```
 
 ## Deploy on Vercel

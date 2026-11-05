@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { LIMITS, PERIODS, WEEK_FIELDS } from '../../public/js/config.js';
+import { ALL_DAYS, LIMITS, PERIODS, WEEK_FIELDS } from '../../public/js/config.js';
 
 const require = createRequire(import.meta.url);
 const serverLimits = require('../../server/limits.js');
@@ -42,6 +42,16 @@ test('every module is preloaded, and every preload exists', () => {
     .filter(e => e.isFile())
     .map(e => join(e.parentPath, e.name).replaceAll('\\', '/').split('/public/')[1])
     .sort();
-  const preloaded = [...publicFile('index.html').matchAll(/rel="modulepreload" href="([^"]+)"/g)].map(m => m[1]).sort();
-  assert.deepEqual(preloaded, modules);
+  const preloadsOf = page => [...publicFile(page).matchAll(/rel="modulepreload" href="([^"]+)"/g)].map(m => m[1]).sort();
+  // The admin dashboard is its own page (admin.html), so the app's page does not load its modules.
+  assert.deepEqual(preloadsOf('index.html'), modules.filter(m => !m.startsWith('js/admin/')));
+  // admin.html preloads every admin module plus the shared ones it imports, and nothing that doesn't exist.
+  const adminPreloads = preloadsOf('admin.html');
+  for (const m of modules.filter(m => m.startsWith('js/admin/'))) assert.ok(adminPreloads.includes(m), `${m} not preloaded by admin.html`);
+  for (const p of adminPreloads) assert.ok(modules.includes(p), `${p} does not exist`);
+});
+
+test('the default days mask matches the server', () => {
+  assert.equal(require('../../server/validate.js').ALL_DAYS, ALL_DAYS);
+  assert.equal(cleanItems([{ id: 'a' }])[0].days, ALL_DAYS);
 });

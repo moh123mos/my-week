@@ -1,30 +1,11 @@
 // The growing moon at the top and "the week's rhythm" (seven small moons and the stats) at the bottom.
 import { DAYS, TIMING } from '../config.js';
 import { $, cls, esc } from '../dom.js';
-import { weekOf } from '../store.js';
-import { doneByDay, elapsedDays, summarize, todayIndexIn } from '../week.js';
+import { MOON_RADIUS, moonPath } from '../moon.js';
+import { itemsOf, weekOf } from '../store.js';
+import { activeOnDay, doneByDay, elapsedDays, summarize, summarySubtitle, summaryTitle, todayIndexIn } from '../week.js';
 
-const MOON_RADIUS = 42;
-// The lit part of a moon in a 100x100 box: the right limb, then the terminator back up. fraction is 0..1.
-const moonPath = fraction => {
-  const terminator = (MOON_RADIUS * Math.abs(1 - 2 * fraction)).toFixed(2);
-  return `M50 8A${MOON_RADIUS} ${MOON_RADIUS} 0 0 1 50 92A${terminator} ${MOON_RADIUS} 0 0 ${fraction > .5 ? 1 : 0} 50 8Z`;
-};
 const easeOutQuart = t => 1 - (1 - t) ** 4;
-
-function summaryTitle(percent, elapsed) {
-  if (!elapsed) return 'أسبوع قادم';
-  if (percent === 100) return 'اكتمل البدر هذا الأسبوع';
-  if (percent >= 80) return 'ما شاء الله، أسبوع قوي';
-  if (percent >= 50) return 'ماضٍ على الطريق';
-  if (percent > 0) return 'كل خطوة تُحسب';
-  return 'أسبوع جديد، ابدأ بخطوة صغيرة';
-}
-
-function summarySubtitle({ done, total }, itemCount, elapsed) {
-  if (!itemCount) return 'دفترك ينتظر أول بند';
-  return elapsed ? `أنجزت ${done} من ${total} خانة حتى الآن` : 'سجّل بداياتك مبكرًا لتسهل المقارنة';
-}
 
 const statHtml = (label, value, good = false) =>
   `<div class="${cls('stat', good && 'good')}"><span>${label}</span><strong>${value}</strong></div>`;
@@ -65,7 +46,7 @@ export function createSummary(store) {
 
   // Refreshes the numbers in place; cheap enough to run on every click and keystroke.
   function update() {
-    const week = weekOf(store, store.cur), items = store.state.items;
+    const week = weekOf(store, store.cur), items = itemsOf(store);
     const elapsed = elapsedDays(store.cur);
     const summary = summarize(items, week, elapsed);
 
@@ -85,7 +66,8 @@ export function createSummary(store) {
       const count = counts[day];
       bar.classList.toggle('empty', count === 0);
       bar.querySelector('em').textContent = day >= elapsed && !count ? '' : count;
-      bar.querySelector('path').setAttribute('d', moonPath(items.length ? count / items.length : 0));
+      const tracked = activeOnDay(items, day);
+      bar.querySelector('path').setAttribute('d', moonPath(tracked ? count / tracked : 0));
     });
   }
 

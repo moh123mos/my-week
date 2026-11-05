@@ -3,26 +3,32 @@
 // Only the week on screen (and the one before it, for inherited "start" values) is loaded.
 // Edits are sent as small deltas: the rows list and/or only the fields (boxes, texts) that changed,
 // so two devices editing the same week don't overwrite each other.
-import { fetchSession, fetchWeeks, isPermanent, saveData } from './api.js';
-import { LIMITS, TIMING, WEEK_FIELDS } from './config.js';
+import { applyRowsForward, fetchSession, fetchWeeks, isPermanent, saveData } from './api.js';
+import { LIMITS, MESSAGES, TIMING, WEEK_FIELDS } from './config.js';
 import { prevKey } from './dates.js';
 
 const newDirtyFields = () => Object.fromEntries(WEEK_FIELDS.map(f => [f, new Set()]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Take the server's copy of a week but keep the fields still waiting to be saved. Undefined means "no such week".
-export function mergeWeek(local, server, pending) {
-  if (!pending || !local) return server || (pending ? local : undefined);
+// Take the server's copy of a week but keep the fields (and the rows) still waiting to be saved.
+// Undefined means "no such week".
+export function mergeWeek(local, server, pending, itemsPending = false) {
+  const waiting = !!pending || itemsPending;
+  if (!waiting || !local) return server || (waiting ? local : undefined);
   const merged = {};
   for (const f of WEEK_FIELDS) {
     merged[f] = { ...(server && server[f]) };
-    pending[f].forEach(id => { if (local[f] && id in local[f]) merged[f][id] = local[f][id]; });
+    if (pending) pending[f].forEach(id => { if (local[f] && id in local[f]) merged[f][id] = local[f][id]; });
   }
+  const source = itemsPending || !server ? local : server;
+  merged.items = source.items;
+  merged.own = itemsPending ? true : source.own;
   return merged;
 }
 
 // The current values of the marked fields, per week; a week with nothing left to send is left out.
-export function weeksDelta(pendingByWeek, weeks) {
+// itemKeys: weeks whose rows changed; those rows travel with the delta.
+export function weeksDelta(pendingByWeek, weeks, itemKeys = new Set()) {
   const out = {};
   for (const [k, pending] of pendingByWeek) {
     const week = weeks[k], delta = Object.fromEntries(WEEK_FIELDS.map(f => [f, {}]));
@@ -34,6 +40,12 @@ export function weeksDelta(pendingByWeek, weeks) {
     }
     if (count) out[k] = delta;
   }
+  for (const k of itemKeys) {
+    const week = weeks[k];
+    if (!week || !week.items) continue;
+    out[k] ||= Object.fromEntries(WEEK_FIELDS.map(f => [f, {}]));
+    out[k].items = week.items;
+  }
   return out;
 }
 
@@ -43,19 +55,20 @@ export function createSync(store, hooks) {
   const loaded = new Set();
   const pendingLoads = new Map();
   const status = { saveFailed: false, limitHit: false, loadFailed: false };
-  let dirtyItems = false;
+  let baseItems = null; // the starting rows of a new notebook, waiting to be saved
+  const itemWeeks = new Set(); // weeks whose own rows changed
   let pushTimer, retryTimer;
   let inflight = 0, pushCount = 0, lastSync = 0;
   let paused = false; // a request that replaces the whole notebook is running
   let epoch = 0; // a new account/notebook invalidates every request still on its way
 
-  const hasDirty = () => dirtyItems || dirty.size > 0;
+  const hasDirty = () => !!baseItems || itemWeeks.size > 0 || dirty.size > 0;
   const idle = async () => { while (inflight) await sleep(TIMING.IDLE_POLL_MS); };
   const notifyStatus = () => hooks.onStatus(status);
   const stopTimers = () => { clearTimeout(pushTimer); clearTimeout(retryTimer); };
   const clearStatus = () => { status.saveFailed = status.limitHit = status.loadFailed = false; notifyStatus(); };
   const forgetRequests = () => { epoch++; pendingLoads.clear(); };
-  const forgetEdits = () => { dirtyItems = false; dirty.clear(); };
+  const forgetEdits = () => { baseItems = null; itemWeeks.clear(); dirty.clear(); };
   const setLoaded = keys => { loaded.clear(); keys.forEach(k => loaded.add(k)); };
 
   function schedulePush() {
@@ -63,13 +76,40 @@ export function createSync(store, hooks) {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(push, TIMING.SAVE_DEBOUNCE_MS);
   }
+  // The first write to a week fixes the rows it shows as its own, so later edits to an earlier week can't change it.
+  function adoptRows(k) {
+    const week = store.state.weeks[k];
+    if (week && week.items && !week.own) {
+      week.own = true;
+      itemWeeks.add(k);
+    }
+  }
   function markDirty(k, field, id) {
+    adoptRows(k);
     if (!dirty.has(k)) dirty.set(k, newDirtyFields());
     dirty.get(k)[field].add(id);
     schedulePush();
   }
-  function markItemsDirty() {
-    dirtyItems = true;
+  // The rows of week k changed (added, renamed, reordered, days...).
+  function markItemsDirty(k) {
+    const week = store.state.weeks[k];
+    if (week) {
+      week.own = true;
+      // Weeks after it that nobody wrote to follow it, up to the next week with rows of its own (the server's rule).
+      // Without this, a week held in memory keeps showing the old rows, and its first tick would freeze them.
+      for (const key of Object.keys(store.state.weeks).sort()) {
+        if (key <= k) continue;
+        const later = store.state.weeks[key];
+        if (later.own) break;
+        if (week.items) later.items = structuredClone(week.items);
+      }
+    }
+    itemWeeks.add(k);
+    schedulePush();
+  }
+  // The notebook's starting rows (a new account, or after erasing everything).
+  function markBaseDirty(items) {
+    baseItems = items;
     schedulePush();
   }
   function remerge(pendingByWeek) {
@@ -82,14 +122,21 @@ export function createSync(store, hooks) {
   // Empties the dirty marks into requests. Each part knows how to mark its fields dirty again.
   function takeParts() {
     const parts = [];
-    if (dirtyItems) parts.push({ body: { items: store.state.items }, redo: () => { dirtyItems = true; } });
-    const taken = new Map(dirty), entries = Object.entries(weeksDelta(taken, store.state.weeks));
+    if (baseItems) {
+      const items = baseItems;
+      parts.push({ body: { items }, redo: () => { baseItems ||= items; } });
+    }
+    const taken = new Map(dirty), itemKeys = new Set(itemWeeks);
+    const entries = Object.entries(weeksDelta(taken, store.state.weeks, itemKeys));
     // The server accepts a limited number of weeks per request.
     for (let i = 0; i < entries.length; i += LIMITS.MAX_WEEKS_PER_SAVE) {
       const chunk = entries.slice(i, i + LIMITS.MAX_WEEKS_PER_SAVE);
       parts.push({
         body: { weeks: Object.fromEntries(chunk) },
-        redo: () => remerge(new Map(chunk.map(([k]) => [k, taken.get(k)]))),
+        redo: () => {
+          remerge(new Map(chunk.filter(([k]) => taken.has(k)).map(([k]) => [k, taken.get(k)])));
+          chunk.forEach(([k]) => { if (itemKeys.has(k)) itemWeeks.add(k); });
+        },
       });
     }
     forgetEdits();
@@ -202,7 +249,7 @@ export function createSync(store, hooks) {
   }
 
   function applyServerWeek(k, serverWeek) {
-    const merged = mergeWeek(store.state.weeks[k], serverWeek, dirty.get(k));
+    const merged = mergeWeek(store.state.weeks[k], serverWeek, dirty.get(k), itemWeeks.has(k));
     if (merged) store.state.weeks[k] = merged;
     else delete store.state.weeks[k];
   }
@@ -242,15 +289,17 @@ export function createSync(store, hooks) {
       lastSync = 0;
       return;
     }
-    const snapshot = () => JSON.stringify([store.state.items, store.state.weeks[at], store.state.weeks[prev]]);
+    const snapshot = () => JSON.stringify([store.state.weeks[at], store.state.weeks[prev]]);
     const before = snapshot();
-    // With the edit dialog open its list is built from items, so the array must not be swapped under it.
+    // With the edit dialog open its list is built from the week's rows, so they must not be swapped under it.
     const editing = hooks.isEditingItems();
-    if (!dirtyItems && !editing && Array.isArray(session.items)) store.state.items = session.items;
+    const shown = store.state.weeks[at];
+    const keep = editing && shown ? { items: shown.items, own: shown.own } : null;
     for (const k of [at, prev]) {
       applyServerWeek(k, session.weeks[k]);
       loaded.add(k);
     }
+    if (keep && store.state.weeks[at]) Object.assign(store.state.weeks[at], keep);
     for (const k of [...loaded]) {
       if (k === at || k === prev) continue;
       loaded.delete(k);
@@ -258,6 +307,23 @@ export function createSync(store, hooks) {
     }
     // Rebuilding the rows would drop focus from a text box the user is already typing in; skip it when nothing changed.
     if (!editing && snapshot() !== before) hooks.onRemoteChange();
+  }
+
+  // Make the rows of the week on screen the rows of every later week. Saved first, so the server has them.
+  async function applyForward() {
+    const k = store.cur;
+    await flush();
+    if (hasDirty()) throw new Error(MESSAGES.GENERIC_ERROR);
+    const week = store.state.weeks[k];
+    if (!week || !week.items) throw new Error(MESSAGES.GENERIC_ERROR);
+    const ep = epoch;
+    await applyRowsForward(k, week.items);
+    if (ep !== epoch) return;
+    week.own = true;
+    // Later weeks held in memory are stale now; they are fetched again when visited.
+    for (const key of [...loaded]) {
+      if (key > k) { loaded.delete(key); delete store.state.weeks[key]; }
+    }
   }
 
   // A session was just loaded with these weeks: start over from what the server said.
@@ -284,7 +350,7 @@ export function createSync(store, hooks) {
   }
 
   return {
-    hasDirty, schedulePush, markDirty, markItemsDirty, push, pushOnHide, flush,
+    hasDirty, schedulePush, markDirty, markItemsDirty, markBaseDirty, applyForward, push, pushOnHide, flush,
     whilePaused, discardPending, loadWeeks, resync, adoptSession, setLoaded, clear, setLoadFailed,
     epoch: () => epoch,
   };

@@ -43,6 +43,7 @@ app.use('/api', async (req, res, next) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/session', require('./routes/session'));
 app.use('/api/data', require('./routes/data'));
+app.use('/api/admin', require('./routes/admin'));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'غير موجود' }));
 app.use((err, req, res, next) => {

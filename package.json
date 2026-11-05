@@ -8,7 +8,9 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
-    "db:index": "node server/scripts/indexes.js"
+    "db:index": "node server/scripts/indexes.js",
+    "admin:grant": "node server/scripts/admin.js grant",
+    "admin:revoke": "node server/scripts/admin.js revoke"
   },
   "engines": {
     "node": ">=20.19.0"

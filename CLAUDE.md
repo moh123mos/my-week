@@ -4,6 +4,7 @@ Arabic RTL weekly habit tracker: grid of habits x 7 days (done / missed / empty)
 
 ## Commands
 - `pnpm install`, `pnpm dev` (http://localhost:3000, needs `.env`), `pnpm test`
+- `pnpm test` also runs `server/admin.test.js` when `MW_TEST_MONGODB_URI` (localhost only) is set; see `docs/TESTING.md` 1b.
 - `pnpm test` is plain `node --test`. Do NOT pass `server/`: on Node 22 it runs `server/index.js` as a module and runs zero tests.
 - `pnpm db:index` is optional; indexes are built automatically on connect.
 - Load test and e2e procedures: `docs/TESTING.md`. Deploy steps and env vars: `README.md`.
@@ -17,6 +18,7 @@ Arabic RTL weekly habit tracker: grid of habits x 7 days (done / missed / empty)
 - Week keys are `YYYY-MM-DD`, Saturdays only, 2020-01-01..2100-12-31 (`isWeekKey`).
 - The CSP exists twice and must stay identical: `server/app.js` (helmet, covers `/api`) and `vercel.json` (covers the static page). `style-src` needs `'unsafe-inline'` (the rows use `style=""`). Any new external origin goes in both.
 - Auth: 30-day JWT in httpOnly cookie `mw_token`, renewed by `GET /api/session`. `JWT_SECRET` under 32 chars makes the server refuse to load. `POST /api/auth/logout` is registered before the DB middleware on purpose (must work when Mongo is down).
+- Admin dashboard: `server/routes/admin.js` (+ `adminStats.js`, `audit.js`, `scripts/admin.js`, page `public/admin.html`). The role is read from the database in `requireAdmin` on every request, never from the JWT. Every token carries `tv` = `User.tokenVersion`; `requireAuth` checks the account exists, is not `disabled` and the version matches (per-process memory for `AUTH_CACHE_MS`, default 5 s; `forget()` after changing an account). Anything that must end sessions (suspend, password reset, revoke) bumps `tokenVersion`. Every admin write goes through `audit.record`. Admin sees counts, never habit names or notes. Details: `docs/ARCHITECTURE.md`.
 - Passwords: scrypt in `server/password.js` (params stored in each hash). Do not use bcrypt/bcryptjs: it blocks the event loop.
 - JWT: `server/middleware/auth.js` passes jsonwebtoken a `KeyObject`, never the raw secret string. With a string it throws while trying to parse a PEM key on every sign/verify (a third of request CPU, measured).
 - Serverless: one cached Mongo connection with pool 5 in `server/db.js`. Don't open connections elsewhere.
@@ -27,6 +29,7 @@ Arabic RTL weekly habit tracker: grid of habits x 7 days (done / missed / empty)
 - Never run `loadtest/seed.js` or load tests against Atlas (the seed refuses non-localhost hosts). E2E/smoke accounts must use `@test.com` or `@loadtest.invalid` emails and be deleted afterwards.
 - On Windows git-bash a long heredoc containing Arabic and quotes failed once (`unexpected EOF`): create files with the Write tool instead.
 - UI strings and error messages are Arabic. Prefer logical CSS properties (`inset-inline`, `margin-inline`) over left/right.
+- Local MongoDB for load tests and e2e: `C:\Users\moh16\tools\mongodb\mongod.exe` (8.2.6, permanent). Look there FIRST; don't pull Docker images or download binaries (Atlas is unreachable from this machine). Start with a throwaway data dir: `mkdir -p /c/Users/moh16/tools/mongodb/data && /c/Users/moh16/tools/mongodb/mongod.exe --dbpath "C:\\Users\\moh16\\tools\\mongodb\\data" --bind_ip 127.0.0.1 --port 27017 --wiredTigerCacheSizeGB 2`, use `MONGODB_URI=mongodb://127.0.0.1:27017/mw-load`, and delete the data dir afterwards. Also installed: k6 (`C:\Program Files\k6`).
 - k6 `__ITER` is per VU: pick the user with `exec.scenario.iterationInTest`. A burst of hundreds of new connections at the same instant is refused on a saturated Windows process; ramp arrivals (see `docs/TESTING.md`).
 - No git commits exist yet; don't commit unless asked.
 

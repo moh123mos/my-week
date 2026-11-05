@@ -3,6 +3,7 @@ import { deleteNotebook, exportNotebook, importNotebook } from '../api.js';
 import { MESSAGES, TIMING } from '../config.js';
 import { keyOf, prevKey } from '../dates.js';
 import { $ } from '../dom.js';
+import { startNotebook } from '../store.js';
 import { defaultItems, isNotebook } from '../week.js';
 import { ask, say } from './dialogs.js';
 
@@ -79,9 +80,10 @@ export function createBackup({ store, sync, edit, session, onReplaced }) {
     } catch (err) {
       return say(err.message);
     }
-    store.state = { items: defaultItems(), weeks: {} };
-    sync.setLoaded([store.cur, prevKey(store.cur)]);
-    sync.markItemsDirty();
+    const items = defaultItems(), keys = [store.cur, prevKey(store.cur)];
+    startNotebook(store, keys, items);
+    sync.setLoaded(keys);
+    sync.markBaseDirty(items);
     edit.render();
     onReplaced();
   }

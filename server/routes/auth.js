@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
 const password = require('../password');
 const { isEmail } = require('../email');
-const { issue } = require('../middleware/auth');
+const { issue, E_DISABLED } = require('../middleware/auth');
 const { MAX_USER_NAME, MAX_EMAIL, PASSWORD_MIN, PASSWORD_MAX } = require('../limits');
 
 const router = express.Router();
@@ -41,12 +41,17 @@ router.post('/login', loginLimiter, async (req, res) => {
   const user = email.length <= MAX_EMAIL ? await User.findOne({ email }).lean() : null;
   const ok = user ? await password.verify(pass, user.passwordHash) : await password.verifyDummy(pass);
   if (!ok) return res.status(401).json({ error: 'الإيميل أو كلمة المرور غير صحيحة' });
+  // Only after the password was right, so the message does not reveal which emails belong to suspended accounts.
+  if (user.disabled) return res.status(403).json(E_DISABLED);
   if (password.needsRehash(user.passwordHash)) {
     // Best effort: a failed upgrade must not block a correct login.
     try { await User.updateOne({ _id: user._id }, { $set: { passwordHash: await password.hash(pass) } }); }
     catch (e) { console.error('rehash failed', e); }
   }
-  issue(res, user._id);
+  // Best effort too (it is only shown to admins), and awaited: a serverless function may be frozen once it responds.
+  try { await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }); }
+  catch (e) { console.error('lastLoginAt failed', e); }
+  issue(res, user._id, user.tokenVersion);
   res.json({ user: pub(user) });
 });
 

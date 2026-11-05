@@ -1,6 +1,7 @@
 // Getting from "signed in" to a notebook on screen.
 import { fetchSession, importNotebook } from './api.js';
 import { prevKey, todayKey } from './dates.js';
+import { startNotebook } from './store.js';
 import { ask, say } from './ui/dialogs.js';
 import { defaultItems, isNotebook } from './week.js';
 
@@ -30,7 +31,7 @@ export function createSession({ store, sync, onReady }) {
     const session = await fetchSession(keys);
     sync.adoptSession(keys);
     store.user = session.user;
-    store.state = { items: session.items || [], weeks: session.weeks };
+    store.state = { weeks: session.weeks };
     return session;
   }
 
@@ -57,8 +58,9 @@ export function createSession({ store, sync, onReady }) {
       if (await uploadLegacyNotebook()) {
         await load(thisWeek);
       } else {
-        store.state.items = defaultItems();
-        sync.markItemsDirty();
+        const items = defaultItems();
+        startNotebook(store, [thisWeek, prevKey(thisWeek)], items);
+        sync.markBaseDirty(items);
       }
     }
     store.cur = store.target = thisWeek;

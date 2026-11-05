@@ -4,6 +4,7 @@ const Week = require('../models/Week');
 const { requireAuth } = require('../middleware/auth');
 const { isWeekKey, cleanItems, cleanWeek, weekFieldPaths, parseKeys, isObj } = require('../validate');
 const { WEEK_FIELDS, weeksByKey } = require('../serializers');
+const { loadWeeks } = require('../weeks');
 const { MAX_WEEKS_PER_SAVE, MAX_IMPORT_WEEKS } = require('../limits');
 
 const router = express.Router();
@@ -16,14 +17,31 @@ const fieldOp = (userId, key, set) => ({
 });
 // Import: the week is replaced as a whole.
 const replaceOp = (userId, key, w) => ({
-  updateOne: { filter: { userId, week: key }, update: { $set: w }, upsert: true },
+  updateOne: {
+    filter: { userId, week: key },
+    update: w.items ? { $set: w } : { $set: w, $unset: { items: '' } },
+    upsert: true,
+  },
 });
 
 // Weeks the user navigated to.
 router.get('/weeks', async (req, res) => {
   const keys = parseKeys(req.query.keys);
-  const docs = keys.length ? await Week.find({ userId: req.userId, week: { $in: keys } }).select(WEEK_FIELDS).lean() : [];
-  res.json({ weeks: weeksByKey(docs) });
+  const settings = keys.length ? await Settings.findOne({ userId: req.userId }).select('items').lean() : null;
+  res.json({ weeks: await loadWeeks(req.userId, keys, settings ? settings.items : []) });
+});
+
+// "Apply to the coming weeks": this week's rows (with their days) become the rows of every later week.
+// Their boxes and notes are untouched; a row that disappears simply stops showing, as when a row is deleted.
+router.post('/apply-forward', async (req, res) => {
+  const { week, items } = req.body;
+  const cleaned = cleanItems(items);
+  if (!isWeekKey(week) || !cleaned) return res.status(400).json({ error: 'بيانات غير صالحة' });
+  await Week.bulkWrite([
+    { updateOne: { filter: { userId: req.userId, week }, update: { $set: { items: cleaned } }, upsert: true } },
+    { updateMany: { filter: { userId: req.userId, week: { $gt: week } }, update: { $set: { items: cleaned } } } },
+  ], { ordered: true });
+  res.json({ ok: true });
 });
 
 // Delta save: only the rows and/or the fields of the weeks that changed.

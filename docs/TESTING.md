@@ -8,7 +8,18 @@ Audience: Claude and developers. Run what applies before calling a change done.
 pnpm test
 ```
 
-Covers `server/validate.js`, `server/password.js`, `server/email.js`, and the client logic in `public/js/` (`dates`, `week`, `sync`, plus limits mirrored from the server). `public/js/ui/` has no automated tests: verify it with section 3.
+Covers `server/validate.js`, `server/password.js`, `server/email.js`, `server/adminStats.js`, and the client logic in `public/js/` (including `public/js/admin/format.js`) (`dates`, `week`, `sync`, plus limits mirrored from the server). `public/js/ui/` has no automated tests: verify it with section 3.
+
+### 1b. Admin API integration (local MongoDB)
+
+`server/admin.test.js` starts the real app on a random port and drives `/api/admin` with cookie jars. It runs only when `MW_TEST_MONGODB_URI` points at a **localhost** MongoDB (it drops that database afterwards, and refuses anything else, never Atlas):
+
+```
+mongod --dbpath <empty dir> --port 27018 --bind_ip 127.0.0.1
+MW_TEST_MONGODB_URI=mongodb://127.0.0.1:27018/mw-test pnpm test
+```
+
+It covers: 401/403 for anonymous and regular users; stats and list (search text is not a regex, junk query values fall back); usage counts without leaking content; rename / email duplicate / invalid input / no-op writes no audit; suspend ends the session at once, blocks login (403), re-enable needs a new login; promote / demote and the self and admin-target guards; reset password; revoke sessions; delete removes weeks and settings; the audit trail survives deletion.
 
 ## 2. API smoke (needs a server and a database)
 
@@ -20,9 +31,12 @@ Start `pnpm dev` and drive the API with a script (cookie jar + `fetch`). Cases t
 - Delta save of items + a week, then a second week alone; `/session` returns both; overwriting one field keeps the others.
 - Isolation: a second account sees none of the first account's data on `/session` and `/data/weeks`.
 - Hostile input: ids with `.`, `$where`, `__proto__` dropped; check values clamped to 0/1/2; bad week key, 21 weeks, duplicate item ids, non-array items, 101 items -> 400; body over 100 KB -> 413; malformed JSON -> 400 (not 500); `{"$ne":null}` as email -> 401.
+- Per-week rows: a week with `items` returns `own: true`; an unwritten week follows the nearest earlier week with rows; `POST /data/apply-forward` overwrites later week docs only; bad `items` (duplicates, 101 rows, non-array) 400; `days` outside 1..127 falls back to 127.
 - Export, import (replaces everything), re-import of an export round-trips, invalid import 400, `DELETE /data`, logout then `/session` -> 401.
 
-Use `@test.com` emails and delete the accounts and their `settings`/`weeks` afterwards.
+- Admin (see 1b for the automated version): a regular account gets 403 on every `/admin` route; after `pnpm admin:grant` the same account gets 200 and `/session` returns `isAdmin: true`.
+
+Use `@test.com` emails and delete the accounts and their `settings`/`weeks` afterwards (and, for admin tests, their `auditlogs`).
 
 ## 3. Browser e2e (Chrome DevTools MCP, one isolated context per "device")
 
@@ -30,7 +44,7 @@ Use `@test.com` emails and delete the accounts and their `settings`/`weeks` afte
 2. Register through the UI; exactly one `/session` request on load; default habit rows appear.
 3. Tick boxes and type start/end text (on narrow screens unfold the row's notes first): several edits become ONE `PUT /api/data` of a few hundred bytes; reload keeps everything and the user stays signed in.
 4. Week navigation: only missing weeks are fetched; start value is inherited from the previous week's end; two quick clicks move two weeks; "this week" button returns.
-5. Edit dialog: add, rename, change period, reorder, delete; persists after reload; "add" is disabled at 100 rows.
+5. Edit dialog: add, rename, change period, reorder, delete; persists after reload; "add" is disabled at 100 rows. Day chips: the pill above the chips reads "تحديد الكل" and selects every day; when all are on it reads "إلغاء الكل" and clears all but Saturday (keyboard focus stays on it); the seven chips have 6px gaps and are about 46px wide at 390px. Switching days off fades those cells (grid keeps its shape), the count reads "x / n", the last day cannot be switched off. Per-week rows: editing this week leaves the previous week unchanged; the next week (never written) follows this one; "طبّق على الأسابيع القادمة" makes a later, already-edited week take this week's rows.
 6. Reset, export, import (valid file, invalid file message in the in-page sheet).
 7. Offline (`emulate` networkConditions Offline): banner appears, the edit stays on screen, logout asks for confirmation, and after going online the banner clears by itself and the edit reached the server.
 8. Logout wipes the previous user's rows from the DOM; a second account sees nothing of the first; first account's data returns on login.
@@ -38,6 +52,8 @@ Use `@test.com` emails and delete the accounts and their `settings`/`weeks` afte
 10. CSP: no `securitypolicyviolation`, Cairo, Aref Ruqaa and Phosphor fonts load.
 11. Mobile (390x844): grid, edit dialog, and auth form have no horizontal scroll.
 12. Console has no errors other than the expected 401 of the pre-login session check.
+14. Admin dashboard (`/admin.html`, signed in as an admin; 390x844 and desktop): a regular account sees the "not authorised" gate and no admin button in settings; the admin sees the button. Overview numbers and the three charts render; users list searches, filters, sorts and pages; the account sheet renames, suspends (confirm dialog first), re-enables, promotes / demotes, resets a password (shown once, copy works) and deletes (confirm dialog). With a second isolated context signed in as the user being suspended: their next save locks the screen with the suspended-account message and their login says the same. The audit tab lists every action, filters by type, and its account links open the sheet. Reload with `#users/<id>` in the address reopens that account; back closes the sheet. Overview "موقوفون" opens the filtered list; tapping a chart bar names its day and value. No horizontal scroll, every control >= 44px, no CSP violation.
+13. Share as image (`#shareBtn`, hidden while the notebook has no rows, disabled on a future week): the sheet opens with a preview and the three size chips (تلقائي shows the size it picked); toggling the notes checkbox and the size redraws; "حفظ الصورة" downloads `my-week-<week>.png` (1080 wide); "نسخ" puts a PNG on the clipboard; "مشاركة" appears only where `navigator.canShare({files})` is true and closing the system sheet shows no error. With 30+ rows the picture ends in "+ N بنود أخرى". The user's name appears top-left. No CSP violation (the preview is the canvas itself, never an `<img src=blob:>`). Check the picture on a real phone too: share to a chat app and open it.
 
 ## 4. Load test (needs k6 and a LOCAL MongoDB)
 

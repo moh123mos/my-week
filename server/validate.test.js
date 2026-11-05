@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanItems, cleanWeek, isWeekKey, weekFieldPaths, parseKeys } = require('./validate');
+const { ALL_DAYS, cleanItems, cleanWeek, isWeekKey, weekFieldPaths, parseKeys } = require('./validate');
 
 test('cleanItems keeps valid rows and normalizes fields', () => {
   const out = cleanItems([{ id: 'a1', name: 'x'.repeat(150), period: 'nope', track: 1 }]);
@@ -80,4 +80,25 @@ test('cleanWeek keeps odd-but-legal ids as plain keys and rejects over-long ones
   assert.deepEqual(Object.keys(w.checks).sort(), ['0', 'constructor']);
   assert.deepEqual(weekFieldPaths(w), { 'checks.0': [2, 0, 0, 0, 0, 0, 0], 'checks.constructor': [1, 0, 0, 0, 0, 0, 0], 'end.toString': 'ok' });
   assert.equal(({}).polluted, undefined);
+});
+
+test('cleanItems keeps a valid days mask and falls back to every day', () => {
+  const days = v => cleanItems([{ id: 'a', days: v }])[0].days;
+  assert.equal(days(5), 5);
+  assert.equal(days(127), 127);
+  for (const bad of [0, 128, -1, 1.5, '5', null, undefined, NaN]) assert.equal(days(bad), ALL_DAYS, String(bad));
+});
+
+test('cleanWeek keeps the week rows only when sent, and rejects bad rows', () => {
+  assert.equal('items' in cleanWeek({ checks: {} }), false);
+  const w = cleanWeek({ items: [{ id: 'a', name: 'x', days: 3 }] });
+  assert.deepEqual(w.items, [{ id: 'a', name: 'x', period: 'sobh', track: false, days: 3 }]);
+  assert.equal(cleanWeek({ items: 'no' }), null);
+  assert.equal(cleanWeek({ items: [{ id: 'x' }, { id: 'x' }] }), null);
+  assert.deepEqual(cleanWeek({ items: [] }).items, []);
+});
+
+test('weekFieldPaths sets the rows as one field, including an empty list', () => {
+  assert.deepEqual(weekFieldPaths(cleanWeek({ items: [] })), { items: [] });
+  assert.deepEqual(Object.keys(weekFieldPaths(cleanWeek({ items: [{ id: 'a' }], start: { a: 's' } }))).sort(), ['items', 'start.a']);
 });

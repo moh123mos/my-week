@@ -1,19 +1,11 @@
 // The week header: the dates on show and moving between weeks. Weeks are fetched on demand.
-import { addDays, fromKey, prevKey, shiftWeek, todayKey } from '../dates.js';
+import { prevKey, shiftWeek, todayKey, weekHijriText, weekRangeText } from '../dates.js';
 import { $ } from '../dom.js';
-
-const rangeFormat = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' });
-const hijriFormat = (() => {
-  // Not every browser ships this calendar; the Hijri line is simply left out then.
-  try { return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { month: 'long', year: 'numeric' }); }
-  catch (_) { return null; }
-})();
 
 export function createNav({ store, sync, onShow, onExpired }) {
   function renderHeader() {
-    const first = fromKey(store.cur);
-    $('#range').textContent = `${rangeFormat.format(first)} – ${rangeFormat.format(addDays(first, 6))}`;
-    $('#hijri').textContent = hijriFormat ? hijriFormat.format(first) : '';
+    $('#range').textContent = weekRangeText(store.cur);
+    $('#hijri').textContent = weekHijriText(store.cur);
     $('#todayBtn').hidden = store.cur === todayKey();
   }
 

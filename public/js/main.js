@@ -1,4 +1,5 @@
 // Connects the parts. The hooks below run later, once every part exists.
+import { takeAuthNotice } from './api.js';
 import { MESSAGES, TIMING } from './config.js';
 import { fromKey, keyOf, todayKey, weekKeyOf } from './dates.js';
 import { createSession } from './session.js';
@@ -11,12 +12,13 @@ import { initDialogs } from './ui/dialogs.js';
 import { createEdit } from './ui/edit.js';
 import { createGrid } from './ui/grid.js';
 import { createNav } from './ui/nav.js';
+import { createShare } from './ui/share.js';
 import { flashSaved, renderBanner } from './ui/status.js';
 import { createSummary } from './ui/summary.js';
 
 initDialogs();
 
-const expire = () => auth.lock(MESSAGES.SESSION_EXPIRED);
+const expire = () => auth.lock(takeAuthNotice() || MESSAGES.SESSION_EXPIRED);
 const store = createStore();
 const sync = createSync(store, {
   onSaved: flashSaved,
@@ -29,6 +31,7 @@ const sync = createSync(store, {
 const summary = createSummary(store);
 const edit = createEdit({ store, sync, onClosed: () => renderWeek(false) });
 const grid = createGrid({ store, sync, summary, onAddFirst: () => edit.openAndAdd() });
+const share = createShare({ store });
 const nav = createNav({ store, sync, onShow: renderWeek, onExpired: expire });
 const session = createSession({ store, sync, onReady: renderWeek });
 const auth = createAuth({
@@ -40,6 +43,8 @@ const auth = createAuth({
     summary.clear();
     edit.clear();
     edit.close();
+    share.close();
+    share.refresh();
   },
 });
 createBackup({ store, sync, edit, session, onReplaced: () => renderWeek(false) });
@@ -48,6 +53,7 @@ function renderWeek(animate) {
   nav.renderHeader();
   grid.render(animate);
   summary.render();
+  share.refresh();
 }
 
 // The app can stay open for days on a phone. When the date changes, "today" moves;

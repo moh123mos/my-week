@@ -3,8 +3,10 @@
 import { CHECK_LABELS, DAYS, DAYS_SHORT, LIMITS, PERIODS } from '../config.js';
 import { addDays, fromKey, prevKey } from '../dates.js';
 import { $, cls, esc } from '../dom.js';
-import { ensureWeek, weekOf } from '../store.js';
-import { checkState, checksOf, countDone, elapsedDays, ensureChecks, nextCheck, periodOf, startValue, todayIndexIn } from '../week.js';
+import { ensureWeek, itemsOf, weekOf } from '../store.js';
+import {
+  activeDays, checkState, checksOf, dayOn, doneIn, elapsedDays, ensureChecks, nextCheck, periodOf, startValue, todayIndexIn,
+} from '../week.js';
 
 const CELL_ICONS = '<i class="ph-bold ph-check ck"></i><i class="ph-bold ph-minus x"></i>';
 const EMPTY_HTML = `<div class="empty">
@@ -29,6 +31,10 @@ function headHtml(weekKey, todayIdx) {
 }
 
 function cellHtml(item, day, raw, todayIdx, elapsed) {
+  // A day this habit isn't tracked on keeps its place (the grid never changes shape) but is faded and can't be pressed.
+  if (!dayOn(item, day)) {
+    return `<div class="${cls('dc', 'off', day === todayIdx && 'today')}"><span class="cb s0" aria-hidden="true"></span></div>`;
+  }
   const value = checkState(raw);
   return `<div class="${cls('dc', day === todayIdx && 'today', day >= elapsed && 'future')}">
     <button class="cb s${value}" data-d="${day}" aria-label="${esc(cellLabel(item, day, value))}">${CELL_ICONS}</button>
@@ -54,11 +60,11 @@ export function createGrid({ store, sync, summary, onAddFirst }) {
   const openNotes = new Set(); // rows whose start/end fields are unfolded on small screens
 
   function rowHtml(item, index, view) {
-    const { week, prevWeek, todayIdx, elapsed } = view;
+    const { week, prevWeek, todayIdx, elapsed, items } = view;
     const checks = checksOf(week, item.id);
     const period = periodOf(item.period);
     const colour = `--pc:var(--p-${period});--i:${index}`;
-    const startsPeriod = !index || periodOf(store.state.items[index - 1].period) !== period;
+    const startsPeriod = !index || periodOf(items[index - 1].period) !== period;
     const open = openNotes.has(item.id);
     const notes = item.track
       ? notesHtml(startValue(week, prevWeek, item.id), (week && week.end[item.id]) || '', open)
@@ -68,13 +74,14 @@ export function createGrid({ store, sync, summary, onAddFirst }) {
         <div class="r-name"><h4>${esc(item.name)}</h4></div>
         <div class="r-days">${checks.map((v, day) => cellHtml(item, day, v, todayIdx, elapsed)).join('')}</div>
         ${notes}
-        <div class="r-count"><b>${countDone(checks)}</b> / ${checks.length}</div>
+        <div class="r-count"><b>${doneIn(item, checks)}</b> / ${activeDays(item)}</div>
       </article>`;
   }
 
   function render(animate) {
-    const key = store.cur, items = store.state.items;
+    const key = store.cur, items = itemsOf(store);
     const view = {
+      items,
       week: weekOf(store, key),
       prevWeek: weekOf(store, prevKey(key)),
       todayIdx: todayIndexIn(key),
@@ -98,14 +105,14 @@ export function createGrid({ store, sync, summary, onAddFirst }) {
 
   function cycleCheck(button) {
     const row = button.closest('.row'), id = row.dataset.id, day = +button.dataset.d;
-    const item = store.state.items.find(x => x.id === id);
-    if (!item) return;
+    const item = itemsOf(store).find(x => x.id === id);
+    if (!item || !dayOn(item, day)) return;
     const checks = ensureChecks(ensureWeek(store, store.cur), id);
     checks[day] = nextCheck(checks[day]);
     sync.markDirty(store.cur, 'checks', id);
     button.className = 'cb s' + checks[day];
     button.setAttribute('aria-label', cellLabel(item, day, checks[day]));
-    row.querySelector('.r-count b').textContent = countDone(checks);
+    row.querySelector('.r-count b').textContent = doneIn(item, checks);
     summary.update();
   }
 
@@ -123,7 +130,7 @@ export function createGrid({ store, sync, summary, onAddFirst }) {
     if (e.target.closest('#emptyAdd')) return onAddFirst();
     const toggle = e.target.closest('.note-tg');
     if (toggle) return toggleNotes(toggle);
-    const button = e.target.closest('.cb');
+    const button = e.target.closest('button.cb');
     if (button) cycleCheck(button);
   });
   rowsEl.addEventListener('input', e => {

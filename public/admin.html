@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لوحة التحكم — أسبوعي</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1320">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+<link rel="modulepreload" href="js/admin/main.js">
+<link rel="modulepreload" href="js/admin/format.js">
+<link rel="modulepreload" href="js/admin/overview.js">
+<link rel="modulepreload" href="js/admin/users.js">
+<link rel="modulepreload" href="js/admin/audit.js">
+<link rel="modulepreload" href="js/admin/route.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/config.js">
+<link rel="modulepreload" href="js/dom.js">
+<link rel="modulepreload" href="js/ui/dialogs.js">
+</head>
+<body class="admin">
+<svg hidden>
+  <symbol id="logo" viewBox="0 0 64 64">
+    <path d="M32 6A26 26 0 0 1 32 58A13.5 26 0 0 0 32 6Z"/>
+    <circle cx="22.05" cy="7.98" r="2.6"/><circle cx="13.62" cy="13.62" r="2.6"/><circle cx="7.98" cy="22.05" r="2.6"/><circle cx="6" cy="32" r="2.6"/><circle cx="7.98" cy="41.95" r="2.6"/><circle cx="13.62" cy="50.38" r="2.6"/><circle cx="22.05" cy="56.02" r="2.6"/>
+  </symbol>
+</svg>
+
+<!-- Not an admin / not signed in -->
+<div class="gate" id="gate" hidden>
+  <div class="auth-card">
+    <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+    <h2 id="gateTitle"></h2>
+    <p class="auth-sub" id="gateMsg"></p>
+    <a class="btn primary" href="./"><span>العودة إلى أسبوعي</span></a>
+    <button class="link-btn" id="gateRetry" type="button" hidden>إعادة المحاولة</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+        <div><h1>لوحة التحكم</h1><small id="who"></small></div>
+      </div>
+      <div class="tools">
+        <button class="icon-btn" id="refresh" type="button" aria-label="تحديث"><i class="ph ph-arrows-clockwise"></i></button>
+        <a class="icon-btn" href="./" aria-label="العودة إلى التطبيق"><i class="ph ph-house"></i></a>
+      </div>
+    </div>
+    <p class="updated" id="updated" role="status" aria-live="off"></p>
+    <div class="tabs" role="tablist" aria-label="أقسام اللوحة">
+      <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">نظرة عامة</button>
+      <button type="button" role="tab" id="tab-users" aria-controls="panel-users" aria-selected="false" tabindex="-1" data-tab="users">المستخدمون</button>
+      <button type="button" role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" tabindex="-1" data-tab="audit">السجل</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <p class="a-error" id="overviewErr" role="alert" hidden></p>
+      <div id="overviewBody"></div>
+    </section>
+
+    <section id="panel-users" role="tabpanel" aria-labelledby="tab-users" hidden>
+      <div class="u-tools">
+        <label class="af u-search"><span class="sr-only">بحث</span><input id="userSearch" type="search" placeholder="ابحث بالاسم أو الإيميل" maxlength="100" autocomplete="off"></label>
+        <div class="u-filters" id="userFilters" role="group" aria-label="تصفية">
+          <button type="button" class="day-chip" data-filter="all" aria-pressed="true">الكل</button>
+          <button type="button" class="day-chip" data-filter="active" aria-pressed="false">نشط</button>
+          <button type="button" class="day-chip" data-filter="disabled" aria-pressed="false">موقوف</button>
+          <button type="button" class="day-chip" data-filter="admin" aria-pressed="false">أدمن</button>
+        </div>
+        <label class="af u-sort"><span>الترتيب</span>
+          <select id="userSort">
+            <option value="newest">الأحدث تسجيلًا</option>
+            <option value="oldest">الأقدم تسجيلًا</option>
+            <option value="login">آخر دخول</option>
+            <option value="name">الاسم</option>
+          </select>
+        </label>
+      </div>
+      <p class="a-error" id="usersErr" role="alert" hidden></p>
+      <p class="hint" id="usersCount" role="status"></p>
+      <div id="userList"></div>
+      <div class="pager" id="userPager" hidden>
+        <button class="btn" id="userPrev" type="button"><i class="ph-bold ph-caret-right"></i> السابق</button>
+        <span id="userPage"></span>
+        <button class="btn" id="userNext" type="button">التالي <i class="ph-bold ph-caret-left"></i></button>
+      </div>
+    </section>
+
+    <section id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" hidden>
+      <p class="hint">كل ما فعله الأدمن في الحسابات، الأحدث أولًا. لا يحتوي كلمات مرور ولا محتوى الدفاتر.</p>
+      <label class="af u-sort"><span>نوع الإجراء</span><select id="auditAction"></select></label>
+      <p class="a-error" id="auditErr" role="alert" hidden></p>
+      <div id="auditList"></div>
+      <button class="btn" id="auditMore" type="button" hidden>عرض المزيد</button>
+    </section>
+  </main>
+</div>
+
+<!-- One account -->
+<dialog id="userDlg" aria-labelledby="userDlgTitle">
+  <div class="dlg-head">
+    <h2 id="userDlgTitle"></h2>
+    <button class="icon-btn" id="userDlgClose" type="button" aria-label="إغلاق"><i class="ph-bold ph-x"></i></button>
+  </div>
+  <div class="dlg-body" id="userDlgBody"></div>
+</dialog>
+
+<!-- In-page confirm() / alert() (same markup as the app, used by ui/dialogs.js) -->
+<dialog id="ask" class="ask" aria-labelledby="askMsg">
+  <p id="askMsg"></p>
+  <div class="ask-acts">
+    <button class="btn primary" id="askOk" type="button"></button>
+    <button class="btn" id="askNo" type="button">رجوع</button>
+  </div>
+</dialog>
+
+<script type="module" src="js/admin/main.js"></script>
+</body>
+</html>

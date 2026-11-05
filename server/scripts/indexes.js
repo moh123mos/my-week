@@ -6,7 +6,7 @@ const connect = require('../db');
 
 (async () => {
   await connect();
-  for (const name of ['User', 'Settings', 'Week']) {
+  for (const name of ['User', 'Settings', 'Week', 'AuditLog']) {
     const M = require(`../models/${name}`);
     await M.createIndexes();
     console.log(name, 'indexes ok');

@@ -28,7 +28,7 @@ export function createBoot({ store, session, lock }) {
           return await session.start();
         } catch (e) {
           // Permanent answers (401, other 4xx) and failures after the session loaded go to the form as before.
-          if (isPermanent(e) || store.user) return lock(e.status === 401 ? '' : e.message);
+          if (isPermanent(e) || store.user) return lock(e.status === 401 && e.code !== 'disabled' ? '' : e.message);
           if (attempt >= TIMING.BOOT_RETRY_MS.length) return showBootView(e.message);
           await sleep(TIMING.BOOT_RETRY_MS[attempt]);
         }

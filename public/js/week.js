@@ -1,11 +1,31 @@
 // Pure rules about habits and weeks: no DOM, no network, no shared state.
-import { CHECK_DONE, CHECK_LABELS, CHECK_MISSED, DAYS_IN_WEEK, DEFAULT_PERIOD, PERIODS, WEEK_FIELDS } from './config.js';
+import { ALL_DAYS, CHECK_DONE, CHECK_LABELS, CHECK_MISSED, DAYS_IN_WEEK, DEFAULT_PERIOD, PERIODS, WEEK_FIELDS } from './config.js';
 import { dayIndex, weekKeyOf } from './dates.js';
 
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const newId = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
-export const newItem = (name = 'بند جديد', period = DEFAULT_PERIOD, track = false) => ({ id: newId(), name, period, track });
+export const newItem = (name = 'بند جديد', period = DEFAULT_PERIOD, track = false) => ({ id: newId(), name, period, track, days: ALL_DAYS });
+
+// Which days a habit is tracked on. A missing mask (rows saved before this existed) means every day.
+const maskOf = item => (item && Number.isInteger(item.days) && item.days >= 1 && item.days <= ALL_DAYS ? item.days : ALL_DAYS);
+export const dayOn = (item, day) => ((maskOf(item) >> day) & 1) === 1;
+// The mask after flipping one day; the last remaining day cannot be switched off.
+export const toggleDay = (item, day) => {
+  const next = maskOf(item) ^ (1 << day);
+  return next === 0 ? maskOf(item) : next;
+};
+export const allDaysOn = item => maskOf(item) === ALL_DAYS;
+// "Select / clear all": every day on, or, since a habit always keeps one day, only the first day (Saturday).
+export const toggleAllDays = item => (allDaysOn(item) ? 1 : ALL_DAYS);
+// How many of the first `upTo` days the habit is tracked on.
+export const activeDays = (item, upTo = DAYS_IN_WEEK) => {
+  let n = 0;
+  for (let d = 0; d < upTo; d++) if (dayOn(item, d)) n++;
+  return n;
+};
+// How many habits are tracked on a given day.
+export const activeOnDay = (items, day) => items.filter(it => dayOn(it, day)).length;
 export const defaultItems = () => [
   newItem('روتين صباحي خفيف', 'sobh', false),
   newItem('مراجعة حزب (بعيدة)', 'sobh', true),
@@ -26,6 +46,9 @@ const validChecks = c => Array.isArray(c) && c.length === DAYS_IN_WEEK;
 export const checkState = v => (v === CHECK_DONE || v === CHECK_MISSED ? v : 0);
 export const nextCheck = v => (checkState(v) + 1) % CHECK_LABELS.length;
 export const countDone = checks => checks.filter(v => v === CHECK_DONE).length;
+// Boxes ticked on the days the habit is tracked, among the first `upTo` days (a day switched off counts for nothing).
+export const doneIn = (item, checks, upTo = DAYS_IN_WEEK) =>
+  checks.slice(0, upTo).filter((v, day) => v === CHECK_DONE && dayOn(item, day)).length;
 export const checksOf = (week, id) => {
   const c = week && week.checks && week.checks[id];
   return validChecks(c) ? c : emptyChecks();
@@ -52,17 +75,19 @@ export function elapsedDays(weekKey, now = new Date()) {
 export const todayIndexIn = (weekKey, now = new Date()) => (weekKey === weekKeyOf(now) ? dayIndex(now) : -1);
 
 export function summarize(items, week, elapsed) {
+  // Only the days a habit is tracked on count, so a habit tracked three days a week can still reach 100%.
   const scored = items.map(item => {
-    const done = countDone(checksOf(week, item.id).slice(0, elapsed));
-    return { item, done, ratio: elapsed ? done / elapsed : 0 };
+    const active = activeDays(item, elapsed), done = doneIn(item, checksOf(week, item.id), elapsed);
+    return { item, active, done, ratio: active ? done / active : 0 };
   });
   const done = scored.reduce((sum, s) => sum + s.done, 0);
-  const total = items.length * elapsed;
+  const total = scored.reduce((sum, s) => sum + s.active, 0);
   const ratio = total ? done / total : 0;
 
   let best = null, worst = null;
-  if (elapsed && items.length > 1 && done > 0) {
-    const sorted = [...scored].sort((a, b) => b.ratio - a.ratio);
+  const counted = scored.filter(s => s.active > 0);
+  if (elapsed && counted.length > 1 && done > 0) {
+    const sorted = [...counted].sort((a, b) => b.ratio - a.ratio);
     const first = sorted[0], last = sorted[sorted.length - 1];
     best = first.item;
     if (last.ratio < first.ratio) worst = last.item;
@@ -72,6 +97,21 @@ export function summarize(items, week, elapsed) {
   return { done, total, ratio, percent: Math.round(ratio * 100), best, worst, trackedCount: tracked.length, endsWritten };
 }
 
+export function summaryTitle(percent, elapsed) {
+  if (!elapsed) return 'أسبوع قادم';
+  if (percent === 100) return 'اكتمل البدر هذا الأسبوع';
+  if (percent >= 80) return 'ما شاء الله، أسبوع قوي';
+  if (percent >= 50) return 'ماضٍ على الطريق';
+  if (percent > 0) return 'كل خطوة تُحسب';
+  return 'أسبوع جديد، ابدأ بخطوة صغيرة';
+}
+
+export function summarySubtitle({ done, total }, itemCount, elapsed) {
+  if (!itemCount) return 'دفترك ينتظر أول بند';
+  return elapsed ? `أنجزت ${done} من ${total} خانة حتى الآن` : 'سجّل بداياتك مبكرًا لتسهل المقارنة';
+}
+
 // How many habits were done on each day of the week.
 export const doneByDay = (items, week) =>
-  Array.from({ length: DAYS_IN_WEEK }, (_, day) => items.filter(it => checksOf(week, it.id)[day] === CHECK_DONE).length);
+  Array.from({ length: DAYS_IN_WEEK }, (_, day) =>
+    items.filter(it => dayOn(it, day) && checksOf(week, it.id)[day] === CHECK_DONE).length);

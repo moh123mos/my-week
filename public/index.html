@@ -21,6 +21,8 @@
 <link rel="modulepreload" href="js/main.js">
 <link rel="modulepreload" href="js/config.js">
 <link rel="modulepreload" href="js/dates.js">
+<link rel="modulepreload" href="js/moon.js">
+<link rel="modulepreload" href="js/share.js">
 <link rel="modulepreload" href="js/week.js">
 <link rel="modulepreload" href="js/api.js">
 <link rel="modulepreload" href="js/store.js">
@@ -34,6 +36,8 @@
 <link rel="modulepreload" href="js/ui/edit.js">
 <link rel="modulepreload" href="js/ui/grid.js">
 <link rel="modulepreload" href="js/ui/nav.js">
+<link rel="modulepreload" href="js/ui/share.js">
+<link rel="modulepreload" href="js/ui/shareCanvas.js">
 <link rel="modulepreload" href="js/ui/status.js">
 <link rel="modulepreload" href="js/ui/summary.js">
 </head>
@@ -77,6 +81,7 @@
       <div class="tools">
         <span class="saved" id="saved" aria-hidden="true"><i class="dot"></i> <span>تم الحفظ</span></span>
         <span class="sr-only" id="savedNote" role="status"></span>
+        <button class="icon-btn" id="shareBtn" aria-label="مشاركة الأسبوع كصورة" hidden><i class="ph ph-share-network"></i></button>
         <button class="icon-btn" id="editBtn" aria-label="تعديل البنود والبيانات"><i class="ph ph-gear-six"></i></button>
       </div>
     </div>
@@ -154,9 +159,12 @@
       <div><strong id="acctName"></strong><small id="acctMail" dir="ltr"></small></div>
       <button class="btn sign-out" id="logoutBtn">خروج <i class="ph ph-sign-out"></i></button>
     </div>
+    <a class="btn" id="adminLink" href="admin.html" hidden><i class="ph ph-shield-check"></i> لوحة تحكم الأدمن</a>
     <h4>البنود (تظهر كصفوف في الشبكة)</h4>
+    <p class="hint scope" id="scopeNote"></p>
     <div id="editList"></div>
     <button class="btn" id="addItem"><i class="ph-bold ph-plus"></i> إضافة بند</button>
+    <button class="btn" id="applyForward"><i class="ph ph-copy"></i> طبّق على الأسابيع القادمة</button>
     <p class="hint" id="addHint" hidden>وصلت للحد الأقصى (١٠٠ بند). احذف بندًا لإضافة غيره.</p>
     <h4>البيانات</h4>
     <div class="btn-row">
@@ -165,6 +173,32 @@
       <button class="btn danger" id="resetBtn"><i class="ph ph-trash"></i> مسح كل البيانات</button>
     </div>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+</dialog>
+
+<!-- Share the week as a picture -->
+<dialog id="shareDlg" aria-labelledby="shareTitle">
+  <div class="dlg-head">
+    <h2 id="shareTitle">مشاركة الأسبوع</h2>
+    <button class="icon-btn" id="shareClose" aria-label="إغلاق"><i class="ph-bold ph-x"></i></button>
+  </div>
+  <div class="dlg-body">
+    <div class="share-stage">
+      <canvas id="shareCanvas" role="img" aria-label="معاينة صورة الأسبوع"></canvas>
+      <div class="share-wait" id="shareWait">جارٍ تجهيز الصورة…</div>
+    </div>
+    <div class="seg" id="shareSizes" role="group" aria-label="مقاس الصورة">
+      <button type="button" class="day-chip" data-size="auto" aria-pressed="true">تلقائي</button>
+      <button type="button" class="day-chip" data-size="portrait" aria-pressed="false">عمودي</button>
+      <button type="button" class="day-chip" data-size="story" aria-pressed="false">قصة</button>
+    </div>
+    <label class="share-opt"><input type="checkbox" id="shareNotes" checked> تضمين البدايات والنهايات المكتوبة</label>
+    <p class="hint" id="shareStatus" role="status"></p>
+    <div class="btn-row share-acts">
+      <button class="btn primary" id="shareSend" type="button" disabled><i class="ph-bold ph-share-network"></i> مشاركة</button>
+      <button class="btn" id="shareSave" type="button" disabled><i class="ph ph-download-simple"></i> حفظ الصورة</button>
+      <button class="btn" id="shareCopy" type="button" disabled><i class="ph ph-copy"></i> نسخ</button>
+    </div>
   </div>
 </dialog>
 

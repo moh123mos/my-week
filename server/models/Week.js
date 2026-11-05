@@ -7,8 +7,13 @@ const weekSchema = new mongoose.Schema({
   checks: { type: mongoose.Schema.Types.Mixed, default: {} },
   start: { type: mongoose.Schema.Types.Mixed, default: {} },
   end: { type: mongoose.Schema.Types.Mixed, default: {} },
+  // This week's own habit rows. A doc without it predates per-week rows and reads Settings.items.
+  items: { type: mongoose.Schema.Types.Mixed },
 }, { timestamps: true, minimize: false });
 
 weekSchema.index({ userId: 1, week: 1 }, { unique: true });
+// The admin dashboard looks at recent weeks across all users. `week` never changes after the insert, so unlike an
+// index on updatedAt this one costs nothing on the hot save path.
+weekSchema.index({ week: 1 });
 
 module.exports = mongoose.models.Week || mongoose.model('Week', weekSchema);

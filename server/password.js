@@ -1,6 +1,7 @@
 // scrypt runs on libuv's thread pool, so hashing never blocks the event loop (bcryptjs does).
 const crypto = require('crypto');
 const { promisify } = require('util');
+const { ADMIN_TEMP_PASSWORD_LENGTH } = require('./limits');
 
 const scrypt = promisify(crypto.scrypt);
 // Cost is deliberately modest: N=16384 (16 MB, tens of ms) keeps login fast and cheap on small serverless CPUs.
@@ -58,4 +59,12 @@ async function verifyDummy(password) {
   return false;
 }
 
-module.exports = { hash, verify, verifyDummy, needsRehash };
+// A readable one-time password for an admin to hand over: no 0/O, 1/l/I, so it survives being read out or retyped.
+const TEMP_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function generateTemporary(length = ADMIN_TEMP_PASSWORD_LENGTH) {
+  let out = '';
+  for (let i = 0; i < length; i++) out += TEMP_ALPHABET[crypto.randomInt(TEMP_ALPHABET.length)];
+  return out;
+}
+
+module.exports = { hash, verify, verifyDummy, needsRehash, generateTemporary };
